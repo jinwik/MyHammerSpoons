@@ -10,7 +10,11 @@ _M.apps = {
     ['Code'] = EN,
     ['Sublime Text'] = EN,
     ['iTerm2'] = EN,
+    ['Google Chrome'] = EN,
 }
+
+_M.pre = {}
+_M.current = nil
 
 local function actived(name, event, app)
     if event == hs.application.watcher.activated then
@@ -18,10 +22,14 @@ local function actived(name, event, app)
         -- print(name)
         -- print(hs.keycodes.currentSourceID())
 
-        local input_source = _M.apps[name]
+        local input_source = _M.apps[name] or _M.pre[name]
+        _M.current = hs.keycodes.currentSourceID()
         if input_source then
             hs.keycodes.currentSourceID(input_source)
         end
+    elseif event == hs.application.watcher.deactivated then
+        if not name then return end-- deactivated event fired after activated event
+        _M.pre[name] = _M.current
     end
 end
 

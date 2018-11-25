@@ -3,39 +3,66 @@ local _M = {}
 _M.screen_watcher = nil
 _M.app_watcher = nil
 _M.app_watcher_started = false
-_M.pre_pos = nil
-_M.primary_screen_name = hs.screen.primaryScreen():name()
+_M.pos_cache = {}
+_M.pos = nil
 
-local function set_leftcenter(app)
-    local screen = app:mainWindow():screen()
+
+local function leftcenter(screen)
+
     local rect = screen:fullFrame()
-    local center = hs.geometry.rectMidPoint(rect)
-    center.x = center.x - rect.w / 4
-    hs.mouse.setAbsolutePosition(center)
+    local pos = hs.geometry.rectMidPoint(rect)
+    pos.x = pos.x - rect.w / 4
+    return pos
+
 end
 
-local function is_primary_screen(screen)
-    return screen:name() == _M.primary_screen_name
+
+-- local function is_mouse_on_top(app)
+--     local window = app:focusedWindow()
+--     if not window then return true end
+
+--     local screen = window:screen()
+--     local rect = screen:fullFrame()
+
+--     local pos = hs.mouse.getAbsolutePosition()
+
+--     return rect.x < pos.x and pos.x < rect.x + rect.w
+
+-- end
+
+
+local function is_pos_at_the_screen(pos, screen)
+
+    local rect = screen:fullFrame()
+
+    return rect.x < pos.x and pos.x < rect.x + rect.w
+
 end
 
 local function actived(name, event, app)
-    if event == hs.application.watcher.activated then
-        -- debug
-        -- if not app then print("======> app is nil"); return end
-        -- if not app:mainWindow() then print("======> app: " .. app:name() .. " window is nil"); return end
-        -- if not app:mainWindow():screen() then print("======> app: " .. app:name() .. " screen is nil"); return end
 
-        local window = app:mainWindow()
-        if not window then return end
-        local screen = window:screen()
-        if not is_primary_screen(screen) then
-            _M.pre_pos = hs.mouse.getAbsolutePosition()
-            set_leftcenter(app)
-        else
-            if _M.pre_pos then 
-                hs.mouse.setAbsolutePosition(_M.pre_pos)
-                _M.pre_pos = nil
-            end
+    if event == hs.application.watcher.activated then
+
+        _M.pos = hs.mouse.getAbsolutePosition()
+        local win = hs.window.focusedWindow()
+        local screen = win:screen()
+
+        if screen:id() ~= hs.mouse.getCurrentScreen():id() then
+            local pos = _M.pos_cache[screen:id()] or leftcenter(screen)
+            hs.mouse.setAbsolutePosition(pos)
+        end
+    
+    elseif event == hs.application.watcher.deactivated then
+
+        local pos = _M.pos
+        if not pos then return end
+
+        local win = app:focusedWindow()
+        if not win then return end
+
+        local screen = win:screen()
+        if is_pos_at_the_screen(pos, screen) then
+            _M.pos_cache[screen:id()] = pos
         end
     end
 end
@@ -58,11 +85,13 @@ function _M.start(self)
                 self.app_watcher = self.app_watcher and self.app_watcher or hs.application.watcher.new(actived)
                 self.app_watcher:start()
                 self.app_watcher_started = true
+                print("app watcher started.")
             end
         else
             if self.app_watcher_started then
                 self.app_watcher:stop()
                 self.app_watcher_started = false
+                print("app watcher stopped.")
             end
         end
     end)
